@@ -34,9 +34,11 @@ SO-REF/
 *.txt
 *.out
 SO_References.md
+*.tempCodeRunnerFile.sh
 
 # Obsidian
 .obsidian/*
 
 # Baca
 *.baca/
+SO_extra/homework/ht2/tempCodeRunnerFile.sh
