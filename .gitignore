@@ -1,0 +1,42 @@
+# Unignore
+!SO_Extra/**
+
+# Binaries (no extension)
+# Ignore all
+*
+# Unignore all with extensions
+!*.*
+# Unignore all dirs
+!*/
+
+# VS Code stuff
+**.vscode/
+.vs/*
+*.code-workspace
+.terminal-presets.json
+
+# cpp
+!*/*.cpp
+!*/*/*.c
+!*/*.hpp
+!*/*.h
+!*/*makefile
+
+# shell
+!.sh
+
+# Misc folders
+[Mm]isc/
+[Rr][Ee][Ff]
+SO-REF/
+
+# Misc files
+*.txt
+*.out
+SO_References.md
+
+# Obsidian
+.obsidian/*
+
+# Baca
+*.baca/
