@@ -29,6 +29,7 @@
 [Mm]isc/
 [Rr][Ee][Ff]
 SO-REF/
+**_REF/**
 
 # Misc files
 *.txt
