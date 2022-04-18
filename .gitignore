@@ -29,9 +29,13 @@
 [Mm]isc/
 [Rr][Ee][Ff]
 SO-REF/
+**_[Re][Ee][Ff]/
 
 # Misc files
 *.txt
+*.pdf
+*.demp
+*.tempo
 *.out
 SO_References.md
 *.tempCodeRunnerFile.sh
