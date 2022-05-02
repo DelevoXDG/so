@@ -8,7 +8,7 @@
 #include <time.h>
 #include <string.h>
 #include <signal.h>
-
+#include <limits.h>
 #include "connection.h"
 
 #define null NULL
@@ -38,8 +38,8 @@ int main(int argc, char const* argv[]) {
 		// while (read(pubFifo, &buf, 1) > 0) {
 
 		int x = 0;
-		char pfName[256];
-		x = read(pubFifo, &pfName, 256);
+		char pfName[PATH_MAX];
+		x = read(pubFifo, &pfName, PATH_MAX);
 		if (x == 0) {
 			break;
 		}
@@ -47,27 +47,34 @@ int main(int argc, char const* argv[]) {
 
 		pfName[x] = '\0';
 		int privFifo = open(pfName, O_RDONLY);
-		char fileName[300];
+		if (privFifo == -1) {
+			printf("Lost connection to client\n");
+			continue;
+		}
+		char receivedDir[PATH_MAX];
 		// printf("%i", x);
 		printf("request received: %s\n", pfName);
-		x = read(privFifo, &fileName, 300);
+		x = read(privFifo, &receivedDir, 300);
 		if (x == 0) {
 			printf("Client disconnected\n");
 			break;
 		}
-		fileName[x] = '\0';
+		receivedDir[x] = '\0';
 		// printf("%i", x);
 		close(privFifo);
 		privFifo = open(pfName, O_WRONLY);
-
+		if (privFifo == -1) {
+			printf("Lost connection to client\n");
+			continue;
+		}
 		// char fileNameCompact[x];
-		// strcpy(fileNameCompact, fileName);
-		// printf("%s\n", fileName);
+		// strcpy(fileNameCompact, receivedDir);
+		// printf("%s\n", receivedDir);
 		// printf("%s\n", fileNameCompact);
 		if (fork() == 0) {
 			dup2(privFifo, STDOUT_FILENO);
 			close(privFifo);
-			execlp("ls", "ls", fileName, null);
+			execlp("ls", "ls", receivedDir, null);
 		}
 		close(privFifo);
 		printf("request handled:  %s\n", pfName);

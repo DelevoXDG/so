@@ -8,7 +8,7 @@
 #include <time.h>
 #include <string.h>
 #include <errno.h>
-
+#include <limits.h>
 // Napisać programy serwera oraz klienta (może być jednocześnie uruchomionych kilku klientów), które zrealizują następującą komunikację przy pomocy łącz nazwanych (kolejek FIFO):
 // -serwer działa w nieskończonej pętli odczytując dane z 'publicznej' kolejki,
 // -klient wysyła do serwera 'publiczną' kolejką nazwę swojej 'prywatnej' kolejki/kolejek do komunikacji,
@@ -27,7 +27,7 @@ static volatile sig_atomic_t keep_running = 1;
 
 
 typedef struct {
-	char string[256];
+	char string[PATH_MAX];
 }String;
 
 typedef struct {
@@ -92,7 +92,6 @@ int main(int argc, char const* argv[]) {
 
 	initArray(&queryArr, 4);
 	// String string = { "hello world" };
-	char pfName[256];
 	// pfName[0] = 'a';
 	// pfName[1] = 'b';
 	// pfName[2] = '\0';
@@ -102,39 +101,55 @@ int main(int argc, char const* argv[]) {
 	// printf("%s\n", queryArr.queryArr[0]);
 	int counter = 0;
 	sleep(1);
+
+	// Section generare private fifo
+	int privateId = getRand(100000, 999999);
+	char pfName[PATH_MAX];
+	snprintf(pfName, sizeof(pfName), "%s%s_%d_%d%s", privatePath, appName, thisPid, privateId, privateExt);
+	String toDel;
+	strncpy(toDel.string, pfName, strlen(pfName) + 1);
+	insertArray(&queryArr, toDel);
+	mkfifo(pfName, 0777);
+	// Section! generate private fifo 
 	while (counter < 5) {
+		// Section sending queue 
 		int pubFifo = open(pubFifoName, O_WRONLY);
 		if (pubFifo == -1) {
 			printf("%s\n", strerror(errno));
 			exit(EXIT_FAILURE);
 		}
 
-		int privateId = getRand(100000, 999999);
-		char pfName[256];
-
-		snprintf(pfName, sizeof(pfName), "%s%d-%dMFA%s", privateDir, thisPid, privateId, ".priv");
-
-		String toDel;
-		strncpy(toDel.string, pfName, 256);
-		insertArray(&queryArr, toDel);
-
+		// int privateId = getRand(100000, 999999);
+		// char pfName[PATH_MAX];
+		// snprintf(pfName, sizeof(pfName), "%s%d-%dMFA%s", privatePath, thisPid, privateId, ".priv");
+		// String toDel;
+		// strncpy(toDel.string, pfName, strlen(toDel.string) + 1);
+		// insertArray(&queryArr, toDel);
+		// mkfifo(pfName, 0777);
 		printf("%s\n", pfName);
 
-		// scanf("%s", &privFifo);
-
-		mkfifo(pfName, 0777);
-		char dirName[] = "/usr/";
-		char data[3000];
 		write(pubFifo, pfName, strlen(pfName));
 		close(pubFifo);
+		// Section sending directory
+		char dirName[] = "/bin/";
 		int privFifo = open(pfName, O_WRONLY);
+
 		write(privFifo, dirName, strlen(dirName) + 1);
 		close(privFifo);
 
+		char buf[17];
 		privFifo = open(pfName, O_RDONLY);
-		read(privFifo, &data, 3000);
+
+		while (1) {
+			int x = read(privFifo, &buf, 16);
+			if (x == 0) {
+				break;
+			}
+			buf[x] = '\0';
+			printf("%s", buf);
+		}
+
 		close(privFifo);
-		printf("%s\n", data);
 		sleep(1);
 		// unlink(pfName);
 		counter++;
