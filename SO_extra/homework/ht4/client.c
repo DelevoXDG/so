@@ -7,7 +7,7 @@
 #include <unistd.h>
 #include <time.h>
 #include <string.h>
-#include <errno.h>
+
 #include <limits.h>
 // Napisać programy serwera oraz klienta (może być jednocześnie uruchomionych kilku klientów), które zrealizują następującą komunikację przy pomocy łącz nazwanych (kolejek FIFO):
 // -serwer działa w nieskończonej pętli odczytując dane z 'publicznej' kolejki,
@@ -62,6 +62,7 @@ int getRand(const int lower, const int upper) {
 	return (rand() % (upper - lower + 1)) + lower;
 }
 static Array queryArr;
+static int privFifo;
 
 void cleanAll() {
 	for (int i = 0; i < queryArr.taken; i++) {
@@ -71,8 +72,14 @@ void cleanAll() {
 	}
 	freeArray(&queryArr);
 }
-
+int is_valid_fd(int fd) {
+	return fcntl(fd, F_GETFL) != -1 || errno != EBADF;
+}
 static void sig_handler(int _) {
+	if (is_valid_fd(privFifo)) {
+		write(privFifo, "", 1);
+		close(privFifo);
+	}
 	printf("Client terminated.\n");
 	(void)_;
 	keep_running = 0;
@@ -100,13 +107,13 @@ int main(int argc, char const* argv[]) {
 	// insertArray(&queryArr, toDel);
 	// printf("%s\n", queryArr.queryArr[0]);
 	int counter = 0;
-	// sleep(1);
+	sleep(1);
 
 	// Section generare private fifo
 	// int privateId = getRand(100000, 999999);
 	char privateId[PATH_MAX - 7 - strlen(appName) - strlen(privateExt)];
-	printf("Enter private fifo name: \n> ");
-	scanf("%s\n", privateId);
+	// printf("Enter private fifo name: ");
+	scanf(" %s", privateId);
 	char pfName[PATH_MAX + 1];
 	snprintf(pfName, sizeof(pfName), "%s%s_%d_%s%s", privatePath, appName, thisPid, privateId, privateExt);
 	String toDel;
@@ -118,7 +125,7 @@ int main(int argc, char const* argv[]) {
 		// Section sending queue 
 		int pubFifo = open(pubFifoName, O_WRONLY);
 		if (pubFifo == -1) {
-			printf("%s\n", strerror(errno));
+			printf(" %s\n", strerror(errno));
 			exit(EXIT_FAILURE);
 		}
 
@@ -129,24 +136,19 @@ int main(int argc, char const* argv[]) {
 		// strncpy(toDel.string, pfName, strlen(toDel.string) + 1);
 		// insertArray(&queryArr, toDel);
 		// mkfifo(pfName, 0777);
-		printf("%s\n", pfName);
+		// printf("%s\n", pfName);
 
 		write(pubFifo, pfName, strlen(pfName));
 		close(pubFifo);
 		// Section sending directory
 		char dirName[PATH_MAX + 1];
-		printf("Enter path: \n> ");
-		// sleep(1);
-		// fgets(dirName, PATH_MAX, stdin);
-		scanf(&dirName, strlen(dirName));
-		dirName[strlen(dirName) - 1] = '\0';
-		int privFifo = open(pfName, O_WRONLY);
-		write(privFifo, dirName, strlen(dirName));
+		// printf("Enter path: \n> ");
+		scanf(" %s", dirName);
+		privFifo = open(pfName, O_WRONLY);
+
+		write(privFifo, dirName, strlen(dirName) + 1);
 		close(privFifo);
-		if (strlen(dirName) == 0) {
-			printf("Exit\n");
-			break;
-		}
+
 		char buf[17];
 		privFifo = open(pfName, O_RDONLY);
 
@@ -162,9 +164,8 @@ int main(int argc, char const* argv[]) {
 		close(privFifo);
 		sleep(1);
 		// unlink(pfName);
-		// counter++;
+		counter++;
 	}
 	cleanAll();
-	printf("Client %d offline.\n", thisPid);
 	exit(EXIT_SUCCESS);
 }
