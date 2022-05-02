@@ -27,7 +27,7 @@ static volatile sig_atomic_t keep_running = 1;
 
 
 typedef struct {
-	char string[PATH_MAX];
+	char string[PATH_MAX + 1];
 }String;
 
 typedef struct {
@@ -100,12 +100,15 @@ int main(int argc, char const* argv[]) {
 	// insertArray(&queryArr, toDel);
 	// printf("%s\n", queryArr.queryArr[0]);
 	int counter = 0;
-	sleep(1);
+	// sleep(1);
 
 	// Section generare private fifo
-	int privateId = getRand(100000, 999999);
-	char pfName[PATH_MAX];
-	snprintf(pfName, sizeof(pfName), "%s%s_%d_%d%s", privatePath, appName, thisPid, privateId, privateExt);
+	// int privateId = getRand(100000, 999999);
+	char privateId[PATH_MAX - 7 - strlen(appName) - strlen(privateExt)];
+	printf("Enter private fifo name: \n> ");
+	scanf("%s\n", privateId);
+	char pfName[PATH_MAX + 1];
+	snprintf(pfName, sizeof(pfName), "%s%s_%d_%s%s", privatePath, appName, thisPid, privateId, privateExt);
 	String toDel;
 	strncpy(toDel.string, pfName, strlen(pfName) + 1);
 	insertArray(&queryArr, toDel);
@@ -120,7 +123,7 @@ int main(int argc, char const* argv[]) {
 		}
 
 		// int privateId = getRand(100000, 999999);
-		// char pfName[PATH_MAX];
+		// char pfName[PATH_MAX + 1];
 		// snprintf(pfName, sizeof(pfName), "%s%d-%dMFA%s", privatePath, thisPid, privateId, ".priv");
 		// String toDel;
 		// strncpy(toDel.string, pfName, strlen(toDel.string) + 1);
@@ -131,12 +134,19 @@ int main(int argc, char const* argv[]) {
 		write(pubFifo, pfName, strlen(pfName));
 		close(pubFifo);
 		// Section sending directory
-		char dirName[] = "/bin/";
+		char dirName[PATH_MAX + 1];
+		printf("Enter path: \n> ");
+		// sleep(1);
+		// fgets(dirName, PATH_MAX, stdin);
+		scanf(&dirName, strlen(dirName));
+		dirName[strlen(dirName) - 1] = '\0';
 		int privFifo = open(pfName, O_WRONLY);
-
-		write(privFifo, dirName, strlen(dirName) + 1);
+		write(privFifo, dirName, strlen(dirName));
 		close(privFifo);
-
+		if (strlen(dirName) == 0) {
+			printf("Exit\n");
+			break;
+		}
 		char buf[17];
 		privFifo = open(pfName, O_RDONLY);
 
@@ -152,8 +162,9 @@ int main(int argc, char const* argv[]) {
 		close(privFifo);
 		sleep(1);
 		// unlink(pfName);
-		counter++;
+		// counter++;
 	}
 	cleanAll();
+	printf("Client %d offline.\n", thisPid);
 	exit(EXIT_SUCCESS);
 }

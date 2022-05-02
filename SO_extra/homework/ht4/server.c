@@ -38,28 +38,32 @@ int main(int argc, char const* argv[]) {
 		// while (read(pubFifo, &buf, 1) > 0) {
 
 		int x = 0;
-		char pfName[PATH_MAX];
+		char pfName[PATH_MAX + 1];
 		x = read(pubFifo, &pfName, PATH_MAX);
 		if (x == 0) {
 			break;
 		}
+		else {
+			pfName[x] = '\0';
+		}
 		close(pubFifo);
 
-		pfName[x] = '\0';
 		int privFifo = open(pfName, O_RDONLY);
 		if (privFifo == -1) {
 			printf("Lost connection to client\n");
 			continue;
 		}
-		char receivedDir[PATH_MAX];
+		char receivedDir[PATH_MAX + 1];
 		// printf("%i", x);
 		printf("request received: %s\n", pfName);
 		x = read(privFifo, &receivedDir, 300);
 		if (x == 0) {
 			printf("Client disconnected\n");
-			break;
+			continue;
 		}
-		receivedDir[x] = '\0';
+		else {
+			receivedDir[x] = '\0';
+		}
 		// printf("%i", x);
 		close(privFifo);
 		privFifo = open(pfName, O_WRONLY);
