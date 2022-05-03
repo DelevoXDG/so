@@ -30,34 +30,102 @@ static void sig_handler(int _) {
 
 
 
+static int rv;
+static fd_set readCheck;
+static fd_set errCheck;
+static struct timeval timeout;
+
+int prepareWrite(const char* name) {
+	int fd = open(name, O_WRONLY | O_RSYNC);
+	FD_SET(fd, &readCheck);
+	FD_SET(fd, &errCheck);
+	timeout.tv_sec = 1;
+	timeout.tv_usec = 0;
+	rv = select(fd + 1, &readCheck, NULL, &errCheck, &timeout);
+	if (rv < 0) {
+			// printf("Select failed\n");
+		printf("Connection lost: select failed.\n");
+		return -1;
+	}
+
+	if (FD_ISSET(fd, &errCheck)) {
+		printf("Connection lost: FD error\n");
+		return -1;
+	}
+
+	if (fd == -1) {
+		printf("Connection lost.\n");
+		return -1;
+	}
+	return fd;
+}
+
+int readTo(const char* name, char* buffer) {
+	int fd = open(name, O_RDONLY);
+	FD_SET(fd, &readCheck);
+	FD_SET(fd, &errCheck);
+	timeout.tv_sec = 1;
+	timeout.tv_usec = 0;
+	rv = select(fd + 1, &readCheck, NULL, &errCheck, &timeout);
+
+	if (rv < 0) {
+		printf("Cannot read: select failed\n");
+		return -1;
+	}
+
+	if (FD_ISSET(fd, &errCheck)) {
+		printf("Cannot read: FD error\n");
+		return -1;
+	}
+
+	if (FD_ISSET(fd, &readCheck)) {
+		memset(buffer, 0, sizeof(buffer));
+		int x = read(fd, buffer, sizeof(buffer));
+		if (x < 0) {
+			printf("Read failed\r\n");
+			return -1;
+		}
+		if (x == 0) {
+			return -2;
+		}
+		buffer[x] = '\0';
+		return 0;
+	}
+	close(fd);
+	return -1;
+}
+
 int main(int argc, char const* argv[]) {
 	signal(SIGINT, sig_handler);
 	// int fd[2];
 
-	fd_set readCheck;
-	fd_set errCheck;
-	struct timeval timeout;
-	mkfifo(pubFifoName, 0744);
+
 	FD_ZERO(&readCheck);
 	FD_ZERO(&errCheck);
 
+	mkfifo(pubFifoName, 0744);
 	printf("Server online.\n");
 	while (keep_running) {
-		int pubFifo = open(pubFifoName, O_RDONLY);
+		printf("Waiting...\n");
 
-		// char buf;
-		// while (read(pubFifo, &buf, 1) > 0) {
-
-		int x = 0;
 		char pfName[PATH_MAX + 1];
-		x = read(pubFifo, &pfName, PATH_MAX);
-		if (x == 0) {
-			break;
+		int pubFifo = readTo(&pubFifoName[0], &pfName[0]);
+		if (pubFifo == -1 || pubFifo == -2) {
+			continue;
 		}
-		else {
-			pfName[x] = '\0';
-		}
-		close(pubFifo);
+		printf("%d\n", pubFifo);
+
+
+		// int pubFifo = open(pubFifoName, O_RDONLY);
+
+		// rv = read(pubFifo, &pfName, PATH_MAX);
+		// if (rv == 0) {
+		// 	break;
+		// }
+		// else {
+		// 	pfName[rv] = '\0';
+		// }
+		// close(pubFifo);
 
 		int privFifo = open(pfName, O_RDONLY);
 		if (privFifo == -1) {
@@ -67,40 +135,29 @@ int main(int argc, char const* argv[]) {
 		char receivedDir[PATH_MAX + 1];
 		// printf("%i", x);
 		printf("request received: %s\n", pfName);
-		x = read(privFifo, &receivedDir, PATH_MAX);
-		if (x == 0) {
+		rv = read(privFifo, &receivedDir, PATH_MAX);
+		if (rv == 0) {
 			printf("Client disconnected\n");
 			continue;
 		}
 		else {
-			receivedDir[x] = '\0';
+			receivedDir[rv] = '\0';
 		}
 		// printf("%i", x);
 		close(privFifo);
-		privFifo = open(pfName, O_WRONLY | O_RSYNC);
-		FD_SET(privFifo, &readCheck);
-		FD_SET(privFifo, &errCheck);
 
-		timeout.tv_sec = 1;
-		timeout.tv_usec = 0;
-
-		int rv = select(privFifo + 1, &readCheck, NULL, &errCheck, &timeout);
-		if (rv < 0) {
-			// printf("Select failed\n");
-			printf("Connection lost: select failed.\n");
-			continue;
-		}
-
-		if (FD_ISSET(privFifo, &errCheck)) {
-			printf("Connection lost: FD error\n");
-			continue;
-		}
-
-
+		privFifo = prepareWrite(&pfName[0]);
 		if (privFifo == -1) {
-			printf("Connection lost.\n");
 			continue;
 		}
+		// privFifo = open(pfName, O_WRONLY | O_RSYNC);
+		// FD_SET(privFifo, &readCheck);
+		// FD_SET(privFifo, &errCheck);
+		// timeout.tv_sec = 1;
+		// timeout.tv_usec = 0;
+		// rv = select(privFifo + 1, &readCheck, NULL, &errCheck, &timeout);
+
+
 		// char fileNameCompact[x];
 		// strcpy(fileNameCompact, receivedDir);
 		// printf("%s\n", receivedDir);
@@ -112,7 +169,6 @@ int main(int argc, char const* argv[]) {
 		}
 		close(privFifo);
 		printf("request handled:  %s\n", pfName);
-
 	}
 
 	unlink(pubFifoName);
