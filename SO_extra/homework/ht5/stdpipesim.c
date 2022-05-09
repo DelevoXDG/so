@@ -17,74 +17,130 @@
 // Kolejne polecenia powinny byc zdefiniowane jako elementy tablicy w progra (z mozliwoscia ich latwej zmany) 
 // i uruchamiane przez funkcje z rodziny exec, kazde polecenie w innym procesie.
 
+int openPipe(int* fd) {
+	if (pipe(fd) == -1) {
+		printf("%s\n", strerror(errno));
+		exit(EXIT_FAILURE);
+	}
+}
+int makeFork() {
+	int pid = fork();
+	if (pid == -1) {
+		exit(EXIT_FAILURE);
+	}
+	return pid;
+}
+int closePipes(int* fd, int len) {
+	for (int i = 0; i < len; i++) {
+		close(fd[i]);
+	}
+}
+
+
 int main(int argc, char* argv[]) {
 	// pthread_mutex_t zamek = PTHREAD_MUTEX_INITIALIZER;
-	char* args[][10] = {
-		{ "ls", "-l", ".", NULL } ,
-		{ "tail", "-n", "-2", NULL},
-		{ "cat", "scores", NULL},
+	char* args[][128] = {
+	{ "ls", "-l", NULL },
+	{ "tr","a-z" ,"A-Z", NULL },
+	// { "xargs", "echo", ">", "lol", NULL},
+	{ "cut" , "-f1", "-d", " ", NULL},
+	// 	{ "ls", "-l", ".", NULL } ,
+	// 	{ "tail", "-n", "-2", NULL},
+	// { "cat", "scores", NULL},
+
 	};
-	// char* cat_args[] = { "cat", "scores", NULL };
-	// char* grep_args[] = { "grep", "amogus", NULL };
 
-	// for (int i = 0; i < LEN(args) - 1; i++) {
-	// printf("%d\n", i);
-	// int fd[2];
-	// pipe(fd);
-	// // pipe(fd + 2);
-	// if (fork == 0) {
 
-	// }
-	// if (fork == 0) {
-	// 	close(fd[1]);
-	// 	dup2(fd[0], STDIN_FILENO);
-	// 	// execvp(*(args[i + 1]), args[i + 1]);
-	// 	execvp(*cat_args, cat_args);
-	// 	printf("alive\n");
+	int progCount = LEN(args);
+	switch (progCount) {
+		case 0: {
+			exit(EXIT_SUCCESS);
+		}
+		case 1: {
+			execvp(**(args + 0), *(args + 0));
+			exit(EXIT_SUCCESS);
+		}
+		case 2: {
+			int fd[2];
+			openPipe(fd);
+			int pid = fork();
+			if (pid == 0) {
+				dup2(fd[1], STDOUT_FILENO);
+				close(fd[0]);
+				close(fd[1]);
+				execvp(**(args + 0), *(args + 0));
+				exit(EXIT_SUCCESS);
+			}
+			int pid2 = fork();
+			if (pid2 == 0) {
+				dup2(fd[0], STDIN_FILENO);
+				close(fd[0]);
+				close(fd[1]);
+				execvp(**(args + 1), *(args + 1));
+				// execlp("tail", "tail", "-n", "-2", NULL);
+				exit(EXIT_SUCCESS);
+			}
+			close(fd[0]);
+			close(fd[1]);
+			waitpid(pid, NULL, 0);
+			waitpid(pid2, NULL, 0);
+		}
+		default: {
+			int fd[(progCount - 1) * 2];		// Need 2 descriptors for each | occurence 
+			for (int i = 0; i < progCount - 1; i++) {
+				openPipe(fd + 2 * i);
+			}
+			int pid[progCount];
+			int last = progCount - 1;
+			pid[0] = makeFork();
+			if (pid[0] == 0) {
+				dup2(fd[1], STDOUT_FILENO);		// STDOUT fd now points to pipe's write descriptor
+				// close(fd[1]);	// STDOUT already points at pipe's write fd
+				// close(fd[0]);	// Never reading input via this pipe
+				closePipes(fd, 2 * last);
+				execvp(**(args + 0), *(args + 0));
+				exit(EXIT_SUCCESS);
+			}
+			for (int i = 1; i < progCount - 1; i++) {
+				pid[i] = makeFork();
+				if (pid[i] == 0) {
+					dup2(fd[0 + 2 * i], STDIN_FILENO);
+					dup2(fd[1 + 2 * i], STDOUT_FILENO);
+					// close(fd[1 + 2 * i]);		// STDOUT already points at pipe's write fd
+					// close(fd[0 + 2 * (i - 1)]);		// STDIN already points at pipe's read fd
+					closePipes(fd, 2 * last);
+					execvp(**(args + i), *(args + i));
+					// execlp("tail", "tail", "-n", "-2", NULL);
+					exit(EXIT_SUCCESS);
+				}
+			}
 
-	// }
-	// else {
-	// 	close(fd[0]);
-	// 	dup2(fd[1], STDOUT_FILENO);
-	// 	// char** temp = &args[i][0];
-	// 	// execvp(*(args[i]), args[i]);
-	// 	execvp(*grep_args, grep_args);
-	// 	printf("b\n");
-	// }
+			pid[last] = makeFork();
+			if (pid[last] == 0) {
+				dup2(fd[0 + (last - 1) * 2], STDIN_FILENO);
+				// close(fd[0 + (last - 1) * 2]);
+				// close(fd[1 + (last - 1) * 2]);
+				closePipes(fd, 2 * last);
+				execvp(**(args + last), *(args + last));
+				// execlp("tail", "tail", "-n", "-2", NULL);
+				exit(EXIT_SUCCESS);
+			}
+			// for (int i = 0; i < 2 * last; i++) {
+			// 	close(fd[i]);
+			// }
+			closePipes(fd, 2 * last);
+			for (int i = 0; i < progCount; i++) {
+				waitpid(pid[i], NULL, 0);
+			}
 
-// }
+		}
+	}
 
 
 	const char* fileName = **(args + 2);
 	char* const* fileArgs = *(args + 2);
 	// execvp(**(args + 2), *(args + 2));
-	int fd[2];
-	if (pipe(fd) == -1) {
-		printf("%s\n", strerror(errno));
-		exit(EXIT_FAILURE);
-	}
-	int pid = fork();
-	if (pid == 0) {
-		dup2(fd[1], STDOUT_FILENO);
-		close(fd[0]);
-		close(fd[1]);
-		execvp(**(args + 0), *(args + 0));
-		exit(EXIT_SUCCESS);
-	}
-	int pid2 = fork();
-	if (pid2 == 0) {
-		printf("Alive\n");
-		dup2(fd[0], STDIN_FILENO);
-		close(fd[0]);
-		close(fd[1]);
-		execvp(**(args + 1), *(args + 1));
-		// execlp("tail", "tail", "-n", "-2", NULL);
-		exit(EXIT_SUCCESS);
-	}
-	close(fd[0]);
-	close(fd[1]);
-	waitpid(pid, NULL, 0);
-	waitpid(pid2, NULL, 0);
+
 
 
 	exit(EXIT_SUCCESS);
