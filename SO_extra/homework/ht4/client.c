@@ -141,11 +141,18 @@ int main(int argc, char const* argv[]) {
 		// if ())
 	} while (isValidName2(privateId) == 0);
 	// Section !make name
+
+		// Section generare private fifo
+	// int privateId = getRand(100000, 999999);
+
+
 	snprintf(pfName, sizeof(pfName), "%s%s_%d_%s_%d%s", privatePath, appName, thisPid, privateId, counter, privateExt);
 	String toDel;
 	strncpy(toDel.string, pfName, strlen(pfName) + 1);
 	insertArray(&queryArr, toDel);
 	mkfifo(pfName, 0777);
+	// Section! generate private fifo 
+	// Section sending private queue 
 	int pubFifo = open(pubFifoName, O_WRONLY);
 	if (pubFifo == -1) {
 		printf("Server offline.\n");
@@ -153,26 +160,21 @@ int main(int argc, char const* argv[]) {
 		// printf("%s\n", strerror(errno));
 		exit(EXIT_SUCCESS);
 	}
-	while (keep_running) {
-		// Section generare private fifo
+
 	// int privateId = getRand(100000, 999999);
+	// char pfName[PATH_MAX + 1];
+	// snprintf(pfName, sizeof(pfName), "%s%d-%dMFA%s", privatePath, thisPid, privateId, ".priv");
+	// String toDel;
+	// strncpy(toDel.string, pfName, strlen(toDel.string) + 1);
+	// insertArray(&queryArr, toDel);
+	// mkfifo(pfName, 0777);
+	// printf("%s\n", pfName);
 
-
-		// Section! generate private fifo 
-		// Section sending private queue 
-
-		// int privateId = getRand(100000, 999999);
-		// char pfName[PATH_MAX + 1];
-		// snprintf(pfName, sizeof(pfName), "%s%d-%dMFA%s", privatePath, thisPid, privateId, ".priv");
-		// String toDel;
-		// strncpy(toDel.string, pfName, strlen(toDel.string) + 1);
-		// insertArray(&queryArr, toDel);
-		// mkfifo(pfName, 0777);
-		// printf("%s\n", pfName);
-
-		write(pubFifo, pfName, strlen(pfName));
-		close(pubFifo);
-		// Section ! sending private queue 
+	write(pubFifo, pfName, strlen(pfName));
+	close(pubFifo);
+	// Section ! sending private queue 
+	while (keep_running) {
+		pthread_mutex_lock(&RDL);
 		// Section sending directory
 		char buf2[PATH_MAX + 1];
 		char dirName[PATH_MAX + 1];
@@ -188,9 +190,11 @@ int main(int argc, char const* argv[]) {
 		if (dirName[strlen(dirName) - 1] == '\n') {
 			dirName[strlen(dirName) - 1] = '0';
 		}
+		pthread_mutex_unlock(&RDL);
 
+		pthread_mutex_lock(&WRL);
 		sscanf(buf2, "%s[^\n]", dirName);
-		privFifo = prepareWrite(pfName);
+		privFifo = open(pfName, O_WRONLY);
 		if (privFifo == -1) {
 			// printf("%s\n", strerror(errno));
 			break;
@@ -201,7 +205,7 @@ int main(int argc, char const* argv[]) {
 			printf("Exit\n");
 			break;
 		}
-
+		pthread_mutex_unlock(&WRL);
 		char buf[17];
 		privFifo = open(pfName, O_RDONLY);
 
@@ -215,7 +219,6 @@ int main(int argc, char const* argv[]) {
 		}
 
 		close(privFifo);
-
 		// unlink(pfName);
 
 

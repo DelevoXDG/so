@@ -49,7 +49,6 @@ int main(int argc, char const* argv[]) {
 	while (keep_running) {
 		printf("\tWaiting...\n");
 		int pubFifo = open(pubFifoName, O_RDONLY);
-
 		printf("123\n");
 		if (pubFifo == -1) {
 			printf("Client offline.\n");
@@ -60,59 +59,64 @@ int main(int argc, char const* argv[]) {
 		x = read(pubFifo, &pfName, PATH_MAX);
 		printf("%d\n", x);
 		if (x == 0) {
-			break;
+			continue;
 		}
 		else {
 			pfName[x] = '\0';
 		}
 		close(pubFifo);
-
-		int privFifo = open(pfName, O_RDONLY);
-		if (fork == 0) {
-			if (privFifo == -1) {
-				printf("Lost connection to client\n");
-				continue;
-			}
-			char receivedDir[PATH_MAX + 1];
-			// printf("%i", x);
-			printf("TODO: %s\n", pfName);
-			x = read(privFifo, &receivedDir, PATH_MAX);
-			if (x == 0) {
+		if (fork() == 0) {
+			while (1) {
+				pthread_mutex_lock(&RDL);
+				int privFifo = open(pfName, O_RDONLY);
+				if (privFifo == -1) {
+					printf("Lost connection to client\n");
+					break;
+				}
+				char receivedDir[PATH_MAX + 1];
+				// printf("%i", x);
+				printf("TODO: %s\n", pfName);
+				x = read(privFifo, &receivedDir, PATH_MAX);
+				if (x == 0) {
+					close(privFifo);
+					printf("Client disconnected by sending a empty string\n");
+					break;
+				}
+				else {
+					receivedDir[x] = '\0';
+				}
+				// printf("%i", x);
 				close(privFifo);
-				printf("Client disconnected by sending a empty string\n");
-				continue;
-			}
-			else {
-				receivedDir[x] = '\0';
-			}
-			// printf("%i", x);
-			close(privFifo);
-
-			privFifo = prepareWrite(&pfName[0]);
-			if (privFifo == -1) {
-				continue;
-			}
-			// privFifo = open(pfName, O_WRONLY | O_RSYNC);
-			// FD_SET(privFifo, &readCheck);
-			// FD_SET(privFifo, &errCheck);
-			// timeout.tv_sec = 1;
-			// timeout.tv_usec = 0;
-			// rv = select(privFifo + 1, &readCheck, NULL, &errCheck, &timeout);
+				pthread_mutex_unlock(&RDL);
+				pthread_mutex_lock(&WRL);
+				privFifo = open(pfName, O_WRONLY);
+				if (privFifo == -1) {
+					break;
+				}
+				// privFifo = open(pfName, O_WRONLY | O_RSYNC);
+				// FD_SET(privFifo, &readCheck);
+				// FD_SET(privFifo, &errCheck);
+				// timeout.tv_sec = 1;
+				// timeout.tv_usec = 0;
+				// rv = select(privFifo + 1, &readCheck, NULL, &errCheck, &timeout);
 
 
-			// char fileNameCompact[x];
-			// strcpy(fileNameCompact, receivedDir);
-			// printf("%s\n", receivedDir);
-			// printf("%s\n", fileNameCompact);
-			if (fork() == 0) {
-				dup2(privFifo, STDOUT_FILENO);
+				// char fileNameCompact[x];
+				// strcpy(fileNameCompact, receivedDir);
+				// printf("%s\n", receivedDir);
+				// printf("%s\n", fileNameCompact);
+				if (fork() == 0) {
+					dup2(privFifo, STDOUT_FILENO);
+					close(privFifo);
+					execlp("ls", "ls", receivedDir, null);
+				}
 				close(privFifo);
-				execlp("ls", "ls", receivedDir, null);
+				pthread_mutex_unlock(&WRL);
+				printf("DONE:  %s\n", pfName);
 			}
-			close(privFifo);
-			printf("DONE:  %s\n", pfName);
 			exit(EXIT_SUCCESS);
 		}
+		sleep(3);
 	}
 
 	unlink(pubFifoName);
