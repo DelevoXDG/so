@@ -99,7 +99,6 @@ static void sig_handler(int _) {
 
 	printf("Client terminated.\n");
 
-
 	cleanAll();
 	exit(EXIT_SUCCESS);
 }
@@ -130,23 +129,25 @@ int main(int argc, char const* argv[]) {
 
 	char privateId[PATH_MAX - 7 - 10 - strlen(appName) - strlen(privateExt)];
 	// Section make name
-	do {
-		memset(&privateId[0], '\0', sizeof(privateId));
-		printf("Enter private fifo name: \n> ");
-
-		// scanf("%s", privateId);
-		fgets(privateId, PATH_MAX, stdin);
-		// privateId[strlen(privateId) - 1] = '\0';
-		sscanf(privateId, "%s", privateId);
-		// if ())
-	} while (isValidName2(privateId) == 0);
-	// Section !make name
-
 		// Section generare private fifo
 	// int privateId = getRand(100000, 999999);
 
+	// do {
+	// 	memset(&privateId[0], '\0', sizeof(privateId));
+	// 	printf("Enter private fifo name: \n> ");
 
-	snprintf(pfName, sizeof(pfName), "%s%s_%d_%s_%d%s", privatePath, appName, thisPid, privateId, counter, privateExt);
+	// 	// scanf("%s", privateId);
+	// 	fgets(privateId, PATH_MAX, stdin);
+	// 	// privateId[strlen(privateId) - 1] = '\0';
+	// 	sscanf(privateId, "%s", privateId);
+	// 	// if ())
+	// } while (isValidName2(privateId) == 0);
+
+
+	// snprintf(pfName, sizeof(pfName), "%s%s_%d_%s_%d%s", privatePath, appName, thisPid, privateId, counter, privateExt);
+	// snprintf(pfName, sizeof(pfName), "%s%s_%d_%s%s", privatePath, appName, thisPid, privateId, privateExt);
+	// snprintf(pfName, sizeof(pfName), "%s%s_%d_%s%s", privatePath, appName, thisPid, privateId, privateExt);
+	snprintf(pfName, sizeof(pfName), "%s%s_%d%s", privatePath, appName, thisPid, privateExt);
 	String toDel;
 	strncpy(toDel.string, pfName, strlen(pfName) + 1);
 	insertArray(&queryArr, toDel);
@@ -173,8 +174,9 @@ int main(int argc, char const* argv[]) {
 	write(pubFifo, pfName, strlen(pfName));
 	close(pubFifo);
 	// Section ! sending private queue 
+	// Section !make name
 	while (keep_running) {
-		pthread_mutex_lock(&RDL);
+
 		// Section sending directory
 		char buf2[PATH_MAX + 1];
 		char dirName[PATH_MAX + 1];
@@ -190,11 +192,9 @@ int main(int argc, char const* argv[]) {
 		if (dirName[strlen(dirName) - 1] == '\n') {
 			dirName[strlen(dirName) - 1] = '0';
 		}
-		pthread_mutex_unlock(&RDL);
 
-		pthread_mutex_lock(&WRL);
 		sscanf(buf2, "%s[^\n]", dirName);
-		privFifo = open(pfName, O_WRONLY);
+		privFifo = prepareWrite(pfName);
 		if (privFifo == -1) {
 			// printf("%s\n", strerror(errno));
 			break;
@@ -205,7 +205,7 @@ int main(int argc, char const* argv[]) {
 			printf("Exit\n");
 			break;
 		}
-		pthread_mutex_unlock(&WRL);
+
 		char buf[17];
 		privFifo = open(pfName, O_RDONLY);
 
@@ -219,6 +219,7 @@ int main(int argc, char const* argv[]) {
 		}
 
 		close(privFifo);
+
 		// unlink(pfName);
 
 

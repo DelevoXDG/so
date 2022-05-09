@@ -45,53 +45,52 @@ int main(int argc, char const* argv[]) {
 	FD_ZERO(&writeCheck);
 
 	mkfifo(pubFifoName, 0744);
-	printf("Server online.\n");
+	printf("[!] Server online.\n");
 	while (keep_running) {
-		printf("\tWaiting...\n");
+		printf("Waiting...\n");
 		int pubFifo = open(pubFifoName, O_RDONLY);
-		printf("123\n");
-		if (pubFifo == -1) {
-			printf("Client offline.\n");
-		}
-		char pfName[PATH_MAX + 1];
-
-		int x = 0;
-		x = read(pubFifo, &pfName, PATH_MAX);
-		printf("%d\n", x);
-		if (x == 0) {
-			continue;
-		}
-		else {
-			pfName[x] = '\0';
-		}
-		close(pubFifo);
 		if (fork() == 0) {
+			if (pubFifo == -1) {
+				printf("[!] Client offline.\n");
+			}
+			char pfName[PATH_MAX + 1];
+
+			int x = 0;
+			x = read(pubFifo, &pfName, PATH_MAX);
+			// printf("%d\n", x);
+			if (x == 0) {
+				exit(EXIT_SUCCESS);
+				break;
+			}
+			else {
+				pfName[x] = '\0';
+			}
+			close(pubFifo);
+			printf("[+] Client\t%s connected\n", pfName);
 			while (1) {
-				pthread_mutex_lock(&RDL);
 				int privFifo = open(pfName, O_RDONLY);
 				if (privFifo == -1) {
-					printf("Lost connection to client\n");
-					break;
+					printf("[-] Lost connection to client\n");
+					exit(EXIT_SUCCESS);
 				}
 				char receivedDir[PATH_MAX + 1];
 				// printf("%i", x);
-				printf("TODO: %s\n", pfName);
+				printf("[↓] TODO:\t%s\n", pfName);
 				x = read(privFifo, &receivedDir, PATH_MAX);
 				if (x == 0) {
 					close(privFifo);
-					printf("Client disconnected by sending a empty string\n");
-					break;
+					printf("[↑] Client\t%s sent empty string.\t%s\n", pfName);
+					printf("[-] Client\t%s disconnected\n", pfName);
+					exit(EXIT_SUCCESS);
 				}
 				else {
 					receivedDir[x] = '\0';
 				}
-				// printf("%i", x);
 				close(privFifo);
-				pthread_mutex_unlock(&RDL);
-				pthread_mutex_lock(&WRL);
+
 				privFifo = open(pfName, O_WRONLY);
 				if (privFifo == -1) {
-					break;
+					exit(EXIT_FAILURE);
 				}
 				// privFifo = open(pfName, O_WRONLY | O_RSYNC);
 				// FD_SET(privFifo, &readCheck);
@@ -105,18 +104,19 @@ int main(int argc, char const* argv[]) {
 				// strcpy(fileNameCompact, receivedDir);
 				// printf("%s\n", receivedDir);
 				// printf("%s\n", fileNameCompact);
-				if (fork() == 0) {
+				pid_t pid = fork();
+				if (pid == 0) {
 					dup2(privFifo, STDOUT_FILENO);
 					close(privFifo);
 					execlp("ls", "ls", receivedDir, null);
 				}
+				waitpid(pid, NULL, 0);			// Note very important to wait for client to wait till process ends to avoid RD/WR collision 
 				close(privFifo);
-				pthread_mutex_unlock(&WRL);
-				printf("DONE:  %s\n", pfName);
+				printf("[↑] DONE:\t%s\n", pfName);
 			}
 			exit(EXIT_SUCCESS);
 		}
-		sleep(3);
+		close(pubFifo);
 	}
 
 	unlink(pubFifoName);
