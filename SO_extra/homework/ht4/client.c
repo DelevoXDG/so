@@ -8,7 +8,6 @@
 #include <time.h>
 #include <string.h>
 #include <limits.h>
-#include <regex.h>
 
 // Napisać programy serwera oraz klienta (może być jednocześnie uruchomionych kilku klientów), które zrealizują następującą komunikację przy pomocy łącz nazwanych (kolejek FIFO):
 // -serwer działa w nieskończonej pętli odczytując dane z 'publicznej' kolejki,
@@ -23,6 +22,8 @@
 
 #define null NULL
 #define nullptr NULL
+#define true 1
+#define false 0
 
 static volatile sig_atomic_t keep_running = 1;
 
@@ -65,14 +66,12 @@ int getRand(const int lower, const int upper) {
 static Array queryArr;
 static char pfName[PATH_MAX + 1];
 static int privFifo;
-regex_t regex;
 static int reti;
 
 void cleanAll() {
-	if (&regex != NULL) {
-		regfree(&regex);
-	}
-	for (int i = 0; i < queryArr.taken; i++) {
+
+	int i = 0;
+	for (i = 0; i < queryArr.taken; i++) {
 		if (access(queryArr.arr[i].string, F_OK) == 0) {
 			unlink(queryArr.arr[i].string);
 		}
@@ -83,6 +82,11 @@ int is_valid_fd(int fd) {
 	return fcntl(fd, F_GETFL) != -1 || errno != EBADF;
 }
 static void sig_handler(int _) {
+	(void)_;
+	if (keep_running == 0) {
+		exit(EXIT_FAILURE);
+	}
+	keep_running = 0;
 	if (is_valid_fd(privFifo)) {
 		write(privFifo, "", 1);
 		close(privFifo);
@@ -94,85 +98,68 @@ static void sig_handler(int _) {
 	}
 
 	printf("Client terminated.\n");
-	(void)_;
-	keep_running = 0;
+
+
 	cleanAll();
 	exit(EXIT_SUCCESS);
 }
 
-int isValidName(char* msgbuf) {
-	reti = regexec(&regex, msgbuf, 0, NULL, 0);
-	if (!reti) {
-		return 1;
-	}
-	else if (reti == REG_NOMATCH) {
+int isValidName2(const char* str) {
+	char bad_chars[] = "!@%^*~|\\/&?<>\"";
+	int i = 0;
+	if (strlen(str) == 0) {
 		return 0;
 	}
-	else {
-		regerror(reti, &regex, msgbuf, sizeof(msgbuf));
-		fprintf(stderr, "Regex match failed: %s\n", msgbuf);
-		exit(EXIT_FAILURE);
+	for (i = 0; i < strlen(bad_chars); ++i) {
+		if (strchr(str, bad_chars[i]) != NULL) {
+			return 0;
+		}
 	}
+	return 1;
 }
 
 int main(int argc, char const* argv[]) {
-	signal(SIGINT, sig_handler);
+	// signal(SIGINT, sig_handler);
 	srand(time(NULL));
 	pid_t thisPid = getpid();
-	reti = regcomp(&regex, "[0-9a-zA-Z_(-)?. ]+", REG_EXTENDED);
-	if (reti) {
-		fprintf(stderr, "Could not compile regex\n");
-		exit(1);
-	}
 
-
-	/* Free memory allocated to the pattern buffer by regcomp() */
-
-	// char hello[] = { '$', '\200', '\003' };
-	// printf("%s\n", hello);
 	String* myStr;
 
 	initArray(&queryArr, 4);
-	// String string = { "hello world" };
-	// pfName[0] = 'a';
-	// pfName[1] = 'b';
-	// pfName[2] = '\0';
-	// String toDel;
-	// strncpy(toDel.string, pfName, 20);
-	// insertArray(&queryArr, toDel);
-	// printf("%s\n", queryArr.queryArr[0]);
 	int counter = 0;
-	sleep(1);
 
-	// Section generare private fifo
-	// int privateId = getRand(100000, 999999);
-	char privateId[PATH_MAX - 7 - strlen(appName) - strlen(privateExt)];
-
+	char privateId[PATH_MAX - 7 - 10 - strlen(appName) - strlen(privateExt)];
+	// Section make name
 	do {
 		memset(&privateId[0], '\0', sizeof(privateId));
-		printf("Enter private fifo name: ");
+		printf("Enter private fifo name: \n> ");
 
 		// scanf("%s", privateId);
 		fgets(privateId, PATH_MAX, stdin);
+		// privateId[strlen(privateId) - 1] = '\0';
 		sscanf(privateId, "%s", privateId);
 		// if ())
-	} while (isValidName(&privateId[0]) == 0);
-
-	snprintf(pfName, sizeof(pfName), "%s%s_%d_%s%s", privatePath, appName, thisPid, privateId, privateExt);
+	} while (isValidName2(privateId) == 0);
+	// Section !make name
+	snprintf(pfName, sizeof(pfName), "%s%s_%d_%s_%d%s", privatePath, appName, thisPid, privateId, counter, privateExt);
 	String toDel;
 	strncpy(toDel.string, pfName, strlen(pfName) + 1);
 	insertArray(&queryArr, toDel);
 	mkfifo(pfName, 0777);
-	regfree(&regex);
-	// Section! generate private fifo 
+	int pubFifo = open(pubFifoName, O_WRONLY);
+	if (pubFifo == -1) {
+		printf("Server offline.\n");
+		cleanAll();
+		// printf("%s\n", strerror(errno));
+		exit(EXIT_SUCCESS);
+	}
 	while (keep_running) {
-		// Section sending queue 
+		// Section generare private fifo
+	// int privateId = getRand(100000, 999999);
 
-		int pubFifo = open(pubFifoName, O_WRONLY);
-		if (pubFifo == -1) {
-			printf("%s\n", strerror(errno));
-			exit(EXIT_FAILURE);
-		}
+
+		// Section! generate private fifo 
+		// Section sending private queue 
 
 		// int privateId = getRand(100000, 999999);
 		// char pfName[PATH_MAX + 1];
@@ -185,6 +172,7 @@ int main(int argc, char const* argv[]) {
 
 		write(pubFifo, pfName, strlen(pfName));
 		close(pubFifo);
+		// Section ! sending private queue 
 		// Section sending directory
 		char buf2[PATH_MAX + 1];
 		char dirName[PATH_MAX + 1];
@@ -192,7 +180,7 @@ int main(int argc, char const* argv[]) {
 		memset(&dirName[0], '\0', sizeof(buf2));
 		// sleep(1);
 		// scanf(&dirName, strlen(dirName));
-		printf("Enter path: \n> ");
+		printf("Enter dir path\n> ");
 		fgets(buf2, PATH_MAX, stdin);
 		if (buf2[0] == '\n') {
 			buf2[0] = '\0';
@@ -202,7 +190,11 @@ int main(int argc, char const* argv[]) {
 		}
 
 		sscanf(buf2, "%s[^\n]", dirName);
-		privFifo = open(pfName, O_WRONLY);
+		privFifo = prepareWrite(pfName);
+		if (privFifo == -1) {
+			// printf("%s\n", strerror(errno));
+			break;
+		}
 		write(privFifo, dirName, strlen(dirName));
 		close(privFifo);
 		if (strlen(dirName) == 0) {
@@ -227,7 +219,7 @@ int main(int argc, char const* argv[]) {
 		// unlink(pfName);
 
 
-		sleep(1);
+		// sleep(1);
 		counter++;
 	}
 	cleanAll();
