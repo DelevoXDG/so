@@ -1,0 +1,94 @@
+{
+	// Use IntelliSense to learn about possible attributes.
+	// Hover to view descriptions of existing attributes.
+	// For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+	"version": "0.2.0",
+	"configurations": [
+		{
+			"name": "Client",
+			"type": "cppdbg",
+			"request": "launch",
+			"program": "${fileDirname}/client",
+			"args": [
+				// "<",
+				// "${workspaceFolder}/tests/test.00.in"
+			],
+			"stopAtEntry": false,
+			"cwd": "${fileDirname}",
+			"environment": [],
+			"externalConsole": false,
+			"MIMode": "gdb",
+			"setupCommands": [
+				{
+					"description": "Enable pretty-printing for gdb",
+					"text": "-enable-pretty-printing",
+					"ignoreFailures": true
+				},
+				{
+					"description": "Set Disassembly Flavor to Intel",
+					"text": "-gdb-set disassembly-flavor intel",
+					"ignoreFailures": true
+				},
+				// {
+				// 	"description": "Debugging Forks",
+				// 	"text": "set follow-fork-mode child",
+				// 	// "ignoreFailures": true
+				// },
+				// 	{
+				// 		"description": "Set Disassembly Flavor to Intel",
+				// 		"text": "set detach-on-fork mode off",
+				// 		"ignoreFailures": true
+				// 	}
+			],
+			"preLaunchTask": "C: gcc build active file",
+			"miDebuggerPath": "/usr/bin/gdb",
+			"miDebuggerArgs": "-q -ex quit; wait() { fg >/dev/null; }; /bin/gdb -q --interpreter=mi"
+		},
+		{
+			"name": "Server",
+			"type": "cppdbg",
+			"request": "launch",
+			"program": "${fileDirname}/server",
+			"args": [],
+			"stopAtEntry": false,
+			"cwd": "${fileDirname}",
+			"environment": [],
+			"externalConsole": false,
+			"MIMode": "gdb",
+			"setupCommands": [
+				{
+					"description": "Enable pretty-printing for gdb",
+					"text": "-enable-pretty-printing",
+					"ignoreFailures": true
+				},
+				{
+					"description": "Set Disassembly Flavor to Intel",
+					"text": "-gdb-set disassembly-flavor intel",
+					"ignoreFailures": true
+				},
+				// {
+				// 	"description": "Debugging Forks",
+				// 	"text": "set follow-fork-mode child",
+				// 	// "ignoreFailures": true
+				// },
+				// 	{
+				// 		"description": "Set Disassembly Flavor to Intel",
+				// 		"text": "set detach-on-fork mode off",
+				// 		"ignoreFailures": true
+				// 	}
+			],
+			"preLaunchTask": "build server",
+			"miDebuggerPath": "/usr/bin/gdb",
+			"miDebuggerArgs": "-q -ex quit; wait() { fg >/dev/null; }; /bin/gdb -q --interpreter=mi"
+		}
+	],
+	"compounds": [
+		{
+			"name": "Server/Client",
+			"configurations": [
+				"Server",
+				"Client"
+			]
+		}
+	]
+}

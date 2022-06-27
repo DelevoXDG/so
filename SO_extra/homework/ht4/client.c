@@ -9,13 +9,19 @@
 #include <string.h>
 #include <limits.h>
 
-// Napisać programy serwera oraz klienta (może być jednocześnie uruchomionych kilku klientów), które zrealizują następującą komunikację przy pomocy łącz nazwanych (kolejek FIFO):
-// -serwer działa w nieskończonej pętli odczytując dane z 'publicznej' kolejki,
-// -klient wysyła do serwera 'publiczną' kolejką nazwę swojej 'prywatnej' kolejki/kolejek do komunikacji,
-// -klient wysyła 'prywatną' kolejką nazwę katalogu,
-// -w odpowiedzi serwer odsyła do klienta jego 'prywatną' kolejką zawartość tego katalogu (wynik polecenia ls),
-// -klient wyświetla otrzymany wynik i działa dalej w pętli (może wysyłać kolejne nazwy katalogów), jeśli chce zakończyć połączenie wysyła do serwera pusty ciąg znaków i usuwa 'prywatną' kolejkę/kolejki.
-// Uwaga: w systemie wydziałowym utworzenie kolejki funkcją mkfifo nie jest możliwe w katalogu domowym (brak uprawnień) ale działa poprawnie w katalogu /tmp
+// Napisac programy serwera oraz klienta (moze byc jednoczesnie uruchomionych kilku klientow), ktore zrealizuja nastepujaca komunikacje przy pomocy lacz nazwanych (kolejek FIFO):
+// -serwer dziala w nieskonczonej petli odczytujac dane z 'publicznej' kolejki,
+// -klient wysyla do serwera 'publiczna' kolejka nazwe swojej 'prywatnej' kolejki/kolejek do komunikacji,
+// -klient wysyla 'prywatna' kolejka nazwe katalogu,
+// -w odpowiedzi serwer odsyla do klienta jego 'prywatna' kolejka zawartosc tego katalogu (wynik polecenia ls),
+// -klient wyswietla otrzymany wynik i dziala dalej w petli (moze wysylac kolejne nazwy katalogow), jesli chce zakonczyc polaczenie wysyla do serwera pusty ciag znakow i usuwa 'prywatna' kolejke/kolejki.
+// Uwaga: w systemie wydzialowym utworzenie kolejki funkcja mkfifo nie jest mozliwe w katalogu domowym (brak uprawnien) ale dziala poprawnie w katalogu /tmp
+
+
+// INFO
+// SIGINT sends null string to force disconnection
+// Sending empty dir path also forces disconnection
+// Wrong path won't be returned
 
 
 #include "connection.h"
@@ -26,7 +32,6 @@
 #define false 0
 
 static volatile sig_atomic_t keep_running = 1;
-
 
 typedef struct {
 	char string[PATH_MAX + 1];
@@ -66,10 +71,8 @@ int getRand(const int lower, const int upper) {
 static Array queryArr;
 static char pfName[PATH_MAX + 1];
 static int privFifo;
-static int reti;
 
 void cleanAll() {
-
 	int i = 0;
 	for (i = 0; i < queryArr.taken; i++) {
 		if (access(queryArr.arr[i].string, F_OK) == 0) {
@@ -87,15 +90,20 @@ static void sig_handler(int _) {
 		exit(EXIT_FAILURE);
 	}
 	keep_running = 0;
-	if (is_valid_fd(privFifo)) {
-		write(privFifo, "", 1);
-		close(privFifo);
-	}
-	else if (access(pfName, F_OK) == 0) {
-		privFifo = open(pfName, O_WRONLY);
-		write(privFifo, "", 1);
-		close(privFifo);
-	}
+	// if (is_valid_fd(privFifo)) {
+	// 	write(privFifo, "", 0);
+	// 	close(privFifo);
+	// }
+	// else if (access(pfName, F_OK) == 0) {
+	// 	privFifo = open(pfName, O_WRONLY);
+	// 	// write(privFifo, "", 1);
+	// 	write(privFifo, "", 0);
+
+	// 	close(privFifo);
+	// }
+	privFifo = open(pfName, O_WRONLY);
+	write(privFifo, "", 0);
+	close(privFifo);
 
 	printf("Client terminated.\n");
 
@@ -118,7 +126,7 @@ int isValidName2(const char* str) {
 }
 
 int main(int argc, char const* argv[]) {
-	// signal(SIGINT, sig_handler);
+	signal(SIGINT, sig_handler);
 	srand(time(NULL));
 	pid_t thisPid = getpid();
 
@@ -128,8 +136,8 @@ int main(int argc, char const* argv[]) {
 	int counter = 0;
 
 	char privateId[PATH_MAX - 7 - 10 - strlen(appName) - strlen(privateExt)];
+	// Section generare private fifo
 	// Section make name
-		// Section generare private fifo
 	// int privateId = getRand(100000, 999999);
 
 	// do {
@@ -148,11 +156,12 @@ int main(int argc, char const* argv[]) {
 	// snprintf(pfName, sizeof(pfName), "%s%s_%d_%s%s", privatePath, appName, thisPid, privateId, privateExt);
 	// snprintf(pfName, sizeof(pfName), "%s%s_%d_%s%s", privatePath, appName, thisPid, privateId, privateExt);
 	snprintf(pfName, sizeof(pfName), "%s%s_%d%s", privatePath, appName, thisPid, privateExt);
+	// Section !make name
 	String toDel;
 	strncpy(toDel.string, pfName, strlen(pfName) + 1);
 	insertArray(&queryArr, toDel);
-	mkfifo(pfName, 0777);
 	// Section! generate private fifo 
+	mkfifo(pfName, 0777);
 	// Section sending private queue 
 	int pubFifo = open(pubFifoName, O_WRONLY);
 	if (pubFifo == -1) {
@@ -174,7 +183,7 @@ int main(int argc, char const* argv[]) {
 	write(pubFifo, pfName, strlen(pfName));
 	close(pubFifo);
 	// Section ! sending private queue 
-	// Section !make name
+
 	while (keep_running) {
 
 		// Section sending directory
@@ -194,7 +203,7 @@ int main(int argc, char const* argv[]) {
 		}
 
 		sscanf(buf2, "%s[^\n]", dirName);
-		privFifo = prepareWrite(pfName);
+		privFifo = open(pfName, O_WRONLY);
 		if (privFifo == -1) {
 			// printf("%s\n", strerror(errno));
 			break;
@@ -221,8 +230,6 @@ int main(int argc, char const* argv[]) {
 		close(privFifo);
 
 		// unlink(pfName);
-
-
 		// sleep(1);
 		counter++;
 	}
