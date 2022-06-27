@@ -45,3 +45,11 @@ SO_References.md
 
 # Baca
 *.baca/
+SO_extra/homework/ht2/tempCodeRunnerFile.sh
+
+# Selective
+!SO_extra/homework/ht3/aktywnosc.txt
+!SO_extra/homework/ht4/.vscode
+SO_extra/homework/ht4/.vscode/settings.json
+baca-so/seaport/lib/hamcrest-core-1.3.jar
+baca-so/seaport/lib/
